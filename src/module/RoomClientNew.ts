@@ -2,14 +2,10 @@
 import * as mediasoupClient from "mediasoup-client";
 import { io } from "socket.io-client";
 import { IMessageState } from "../models/reducers/stream/message";
-import { IRemoteStreams } from "../models/reducers/stream/remoteStream";
 import { serverConfig } from "../models/variables/serverConfig";
+import { setConsumerStreamsNew } from "../reducers/stream/consumerStreamNew";
+import { setKeyStreamsNew } from "../reducers/stream/keyStreamNew";
 import { setMessage } from "../reducers/stream/messageReducer";
-import { setRemoteStream } from "../reducers/stream/remoteStreams";
-// import { IMessageState } from "../model/reducers/stream/message";
-// import { IRemoteStreams } from "../model/reducers/stream/remoteStream";
-// import { setMessage } from "../reducer/stream/messageReducer";
-// import { setRemoteStream } from "../reducer/stream/remoteStreams";
 import { store } from "../redux/store";
 import { StreamAxiosInstance } from "../utils/setupAxiosInterceptors";
 import { EVENTS, RTC_EVENTS } from "./events/EVENTS";
@@ -31,7 +27,7 @@ class RoomClient {
     producerTransport: any;
     consumerTransport: any;
     routerCapabilities: any;
-    constructor(roomname: string, password: string, username: string, callback: Function) {
+    constructor(roomname: string | any, password: string | any, username: string | any, callback: Function) {
         this.roomname = roomname;
         this.password = password;
         this.username = username;
@@ -45,71 +41,38 @@ class RoomClient {
         this.socket.on(
             RTC_EVENTS.NEW_PRODUCER,
             async (data: { producer_id: string; isKey: boolean; peerId: string; peerName: string }) => {
-                if (!this.localUser) {
-                    return;
-                }
-                const remoteStreams = [...store.getState().remoteStreams];
-                if (data.peerId !== this.localUser.id) {
-                    const consumer = await this.localUser.consumer(
-                        this.roomname,
-                        this.localUser.id,
-                        this.device.rtpCapabilities,
-                        this.consumerTransport,
-                        data.producer_id
-                    );
-                    const stream = new MediaStream();
-                    stream.addTrack(consumer.track);
-
-                    const remoteElementIndex = remoteStreams.findIndex((remote: IRemoteStreams) => remote.peerId === data.peerId);
-                    if (remoteElementIndex !== -1) {
-                        if (consumer.track.kind === "video") {
-                            remoteStreams[remoteElementIndex].videos.push({ consumer, stream, active: true, name: data.isKey ? "Key" : "" })
-                        } else {
-                            remoteStreams[remoteElementIndex].audio = ({ consumer, stream, active: false, name: "" })
-                        }
-                    } else {
-                        let obj: IRemoteStreams;
-                        if (consumer.track.kind === "video") {
-                            obj = {
-                                peerId: data.peerId,
-                                peerName: data.peerName,
-                                videos: [{ consumer, stream, active: true, name: data.isKey ? "Key" : "" }],
-                                audio: null,
-                                isKey: data.isKey,
-                            }
-                        } else {
-                            obj = {
-                                peerId: data.peerId,
-                                peerName: data.peerName,
-                                videos: [],
-                                audio: consumer,
-                                isKey: data.isKey,
-                            }
-                        }
-                        remoteStreams.push(obj)
-                    }
-
-                }
-                store.dispatch(setRemoteStream(remoteStreams))
+                console.log("NEW_PRODUCER");
+                StreamAxiosInstance.post("/call/getConsumerUser", {
+                    roomname: this.roomname,
+                }).then((consumerUser:any) => {
+                    store.dispatch(setConsumerStreamsNew(consumerUser.data));
+                });
+                StreamAxiosInstance.post("/call/getKeyUser", { roomname: this.roomname }).then((keyUser:any) => {
+                    store.dispatch(setKeyStreamsNew(keyUser.data));
+                });
+               
             }
         );
 
-        this.socket.on(RTC_EVENTS.CLOSE_CONSUME, ({ consumerId, peerId, peerName }: any) => {
+        this.socket.on(RTC_EVENTS.CLOSE_CONSUME, async ({ consumerId, peerId, peerName }: any) => {
             console.log("closing consumer:", consumerId, peerId, peerName);
-            if (!this.localUser) {
-                return;
-            }
-            this.localUser.closeConsumer(consumerId);
+            StreamAxiosInstance.post("/call/getConsumerUser", {
+                roomname: this.roomname,
+            }).then((consumerUser:any) => {
+                store.dispatch(setConsumerStreamsNew(consumerUser.data));
+            });
+            StreamAxiosInstance.post("/call/getKeyUser", { roomname: this.roomname }).then((keyUser:any) => {
+                store.dispatch(setKeyStreamsNew(keyUser.data));
+            });
         });
 
-        this.socket.on(EVENTS.SOCKET_USER_LEFT_ROOM, async ({ name, id, isKey }: any) => { 
+        this.socket.on(EVENTS.SOCKET_USER_LEFT_ROOM, async ({ name, id, isKey }: any) => {
             if (!this.localUser) {
                 return;
             }
             if (isKey) {
                 window.close();
             }
-            this.localUser.closeAddConsumerOfUser(id);
             Notification("warning", name + " đã rời khỏi cuộc họp");
         });
 
@@ -142,7 +105,7 @@ class RoomClient {
 
     init = async () => {
         const user = new UserClient(this.socket, this.socket.id, this.username, true, this.roomname);
-        console.log(this.roomname)
+        console.log(this.roomname);
         const hasRoom = await StreamAxiosInstance.post("/call/checkRoomExistence", { roomname: this.roomname });
         if (hasRoom) {
             user.iskey = false;
@@ -222,6 +185,21 @@ class RoomClient {
         this.consumerTransport = consumerTransport;
         this.routerCapabilities = routerCapabilities;
         this.localUser = user;
+    };
+
+    getConsumerFromProducerId = async (producerId: string) => {
+        if (!this.localUser) {
+            console.log("not found user in room");
+            return;
+        }
+        const consumer = await this.localUser.consumer(
+            this.roomname,
+            this.localUser.id,
+            this.device.rtpCapabilities,
+            this.consumerTransport,
+            producerId
+        );
+        return consumer;
     };
 
     getProducerInRoom = async () => {

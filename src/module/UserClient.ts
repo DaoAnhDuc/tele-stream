@@ -1,6 +1,4 @@
 
-import { setLocalStreams } from "../reducers/stream/localStreams";
-import { setRemoteStream } from "../reducers/stream/remoteStreams";
 import { store } from "../redux/store";
 import { StreamAxiosInstance } from "../utils/setupAxiosInterceptors";
 
@@ -28,16 +26,7 @@ class UserClient {
         const producer = await producerTransport.produce(params);
         producer.type = type;
         producer.on("trackended", async () => {
-            const newLocalStreams = { ...store.getState().localStreams };
-            if (type === "screenshare") {
-                for (let index = 0; index < newLocalStreams.screencast.length; index++) {
-                    const element = newLocalStreams.screencast[index];
-                    if (element.producer.id === producer.id) {
-                        newLocalStreams.screencast.splice(index, 1);
-                    }
-                }
-                await store.dispatch(setLocalStreams(newLocalStreams))
-            }
+            
             const producerInstance = {
                 kind: producer.kind,
                 id: producer.id,
@@ -199,30 +188,10 @@ class UserClient {
 
     closeConsumer = async (consumerId: string) => {
 
-        const remoteStreams = [...store.getState().remoteStreams];
-        for (let index = 0; index < remoteStreams.length; index++) {
-            const item = remoteStreams[index];
-            for (let j = 0; j < item.videos.length; j++) {
-                const video = item.videos[j];
-                if (video.consumer.id === consumerId) {
-                    item.videos.splice(j, 1);
-                    break;
-                }
-            }
-            if (item.audio) {
-                if (item.audio.consumer.id === consumerId) {
-                    item.audio = null;
-                    break;
-                }
-            }
-        }
-        await store.dispatch(setRemoteStream(remoteStreams));
     };
 
     closeAddConsumerOfUser = (userId: string) => {
-        const remoteStreams = [...store.getState().remoteStreams];
-        const newremoteStreams = remoteStreams.filter((element) => element.peerId !== userId);
-        store.dispatch(setRemoteStream(newremoteStreams));
+       
     };
 }
 

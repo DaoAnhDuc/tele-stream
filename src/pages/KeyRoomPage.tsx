@@ -9,12 +9,12 @@ import { store } from "../redux/store";
 import { setMessage } from "../reducers/stream/messageReducer";
 import StreamLayout from "../layout/Stream/StreamLayout";
 import { setPatientInfo } from "../reducers/patientInfoReducer";
+import { getKeyStreamsNew } from "../reducers/stream/keyStreamNew";
 
 const antIcon = <LoadingOutlined style={{ fontSize: 24 }} spin />;
 
-interface Props {
-}
-interface State { }
+interface Props {}
+interface State {}
 
 class StreamPage extends Component<Props, State> {
     state = {
@@ -27,8 +27,7 @@ class StreamPage extends Component<Props, State> {
         if (params) {
             const decodeParams = decodeURIComponent(window.atob(params));
             const toJson = JSON.parse(decodeParams);
-            console.log(toJson, 'toJson');
-            
+            console.log(toJson, "toJson");
             patientInfoStream.sid = toJson.sid;
             patientInfoStream.svid = toJson.svid;
             const roomClient = new RoomClient(
@@ -39,7 +38,7 @@ class StreamPage extends Component<Props, State> {
                     await roomClient.init();
                     await roomClient.initSocketEvent();
                     window.roomClient = roomClient;
-                    const patientInfoData = await AxiosInstance(`/api/InforExtend/${toJson.roomname}/patient`);
+                    const patientInfoData = await AxiosInstance(`/api/InforExtend/809/patient`);
                     const messages = await StreamAxiosInstance.post("/call/getMessageInRoom", {
                         roomname: window.roomClient.roomname,
                     });
@@ -49,18 +48,13 @@ class StreamPage extends Component<Props, State> {
                     }
                     this.setState({ pendding: false });
                 }
-
             );
-
-            //     //Anh Duc
-            //     RISAxiosInstance.post(`/api/Hubs/notice-stream`, { data: JSON.stringify({ sid: toJson.sid, svid: toJson.svid, onStream: true, type: "STREAM_NOTIFICATION" })})
-
         }
     };
 
     render() {
         return (
-            <div className="stream-page" style={{width: '100%',height: '100vh', overflow: 'hidden'}}>
+            <div className="stream-page" style={{ width: "100%", height: "100vh", overflow: "hidden" }}>
                 {this.state.pendding ? (
                     <div
                         style={{
@@ -85,8 +79,7 @@ const mapStateToProps = (state: any) => {
 };
 
 const mapDispatchToProps = (dispatch: any) => {
-    return {
-    };
+    return {};
 };
 
 export default connect(mapStateToProps, mapDispatchToProps)(StreamPage);

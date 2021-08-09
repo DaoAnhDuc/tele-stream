@@ -3,17 +3,18 @@ import HomePage from "./pages/HomePage";
 import { store } from "./redux/store";
 import { Provider } from "react-redux";
 import ErrorBoundry from "./components/ErrorBoundry/ErrorBoundry";
-import 'antd/dist/antd.css'; // or 'antd/dist/antd.less'
+import "antd/dist/antd.css"; // or 'antd/dist/antd.less'
 import "./style/App.scss";
 import "./style/stream.scss";
-import RouterPage from "./routers/RouterPage"
 import { serverConfig } from "./models/variables/serverConfig";
 import { checkUserPermision, setupAxiosInterceptors } from "./utils/setupAxiosInterceptors";
 import { setAuth } from "./reducers/authenticateReducer";
 import { getToken } from "./utils/storeManager";
 import { Spin } from "antd";
 import KeyRoomPage from "./pages/KeyRoomPage";
-interface Props { }
+import { ILocalStreamsNew } from "./models/reducers/stream/localStreamsNew";
+import { setLocalStreamsNew } from "./reducers/stream/localStreamsNew";
+interface Props {}
 interface State {
     checkingPermision: boolean;
 }
@@ -26,15 +27,15 @@ declare global {
 
 class App extends Component<Props, State> {
     state = {
-        checkingPermision: true
+        checkingPermision: true,
     };
 
     constructor(props: Props) {
         super(props);
         this.setGlobalWindowVariable();
         this.getConfig();
-        setupAxiosInterceptors(() => { });
-        this.initializeInfo()
+        setupAxiosInterceptors(() => {});
+        this.initializeInfo();
     }
 
     setGlobalWindowVariable = () => {
@@ -51,11 +52,31 @@ class App extends Component<Props, State> {
                 await store.dispatch(setAuth(false));
             }
 
-            this.setState({ checkingPermision: false });
-
+            await this.setState({ checkingPermision: false });
+            await this.getDevices();
         } catch (error) {
             console.log(error);
         }
+    };
+
+    getDevices = async () => {
+        const devices = await window.navigator.mediaDevices.enumerateDevices();
+        const deviceList = [];
+        for (let index = 0; index < devices.length; index++) {
+            const deviceInfo = devices[index];
+            const deviceKind = deviceInfo.kind;
+            const deviceName = deviceInfo.label;
+            const deviceId = deviceInfo.deviceId;
+            const localDevice: ILocalStreamsNew = {
+                name: deviceName,
+                active: true,
+                type: deviceKind,
+                deviceId,
+                producer: null,
+            };
+            deviceList.push(localDevice);
+        }
+        store.dispatch(setLocalStreamsNew(deviceList))
     };
 
     getConfig = () => {
@@ -73,10 +94,9 @@ class App extends Component<Props, State> {
         serverConfig.hospitalLogo = sc.LOGO;
         serverConfig.hospitalName = sc.HOSPITAL;
         serverConfig.hospitalAddress = sc.HOSPITAL_ADDRESS;
-    }
+    };
 
     render() {
-        console.log(this.state.checkingPermision);
         return (
             <Provider store={store}>
                 <ErrorBoundry />
@@ -93,7 +113,9 @@ class App extends Component<Props, State> {
                     >
                         <Spin tip="Checking user permision..."></Spin>
                     </div>
-                ) : <KeyRoomPage/>}
+                ) : (
+                    <KeyRoomPage />
+                )}
             </Provider>
         );
     }
